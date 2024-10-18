@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rendszer Irányítópult</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .dashboard-container {
+            max-width: 1200px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .dashboard-title {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #007bff;
+        }
+        .system-info {
+            margin-bottom: 30px;
+        }
+        .command-execution {
+            margin-bottom: 30px;
+        }
+        .file-browser {
+            margin-bottom: 30px;
+        }
+        .top-buttons {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+        }
+        .top-buttons .btn {
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container dashboard-container">
+        <h2 class="dashboard-title">Rendszer Irányítópult</h2>
+        <p class="text-center">Üdvözöljük, {{ username }}! Host: {{ hostname }}</p>
+        
+        <div class="top-buttons">
+            <button type="button" class="btn btn-danger btn-sm" data-bs-toggle="modal" data-bs-target="#shutdownModal">
+                <i class="fa fa-power-off"></i> Kikapcsolás
+            </button>
+            <button type="button" class="btn btn-warning btn-sm" data-bs-toggle="modal" data-bs-target="#rebootModal">
+                <i class="fa fa-refresh"></i> Újraindítás
+            </button>
+            <form action="{{ url_for('logout') }}" method="post" class="d-inline">
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <i class="fa fa-sign-out"></i> Kijelentkezés
+                </button>
+            </form>
+        </div>
+
+        <div class="system-info">
+            <h3>Rendszerinformációk</h3>
+            <div id="system-info-content">
+                Betöltés...
+            </div>
+        </div>
+
+        <div class="command-execution">
+            <h3>Parancs végrehajtása</h3>
+            <div class="input-group mb-3">
+                <input type="text" id="command-input" class="form-control" placeholder="Írja be a parancsot...">
+                <button class="btn btn-primary" type="button" id="execute-command">Végrehajtás</button>
+            </div>
+            <pre id="command-output" class="bg-light p-3 rounded"></pre>
+        </div>
+
+        <div class="file-browser">
+            <h3>Fájl böngésző</h3>
+            <div id="file-browser-content">
+                Betöltés...
+            </div>
+        </div>
+    </div>
+
+    <!-- Kikapcsolás megerősítő modal -->
+    <div class="modal fade" id="shutdownModal" tabindex="-1" aria-labelledby="shutdownModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="shutdownModalLabel">Rendszer kikapcsolása</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Biztosan ki szeretné kapcsolni a rendszert?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Mégse</button>
+                    <button type="button" class="btn btn-danger" id="confirmShutdown">Kikapcsolás</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Újraindítás megerősítő modal -->
+    <div class="modal fade" id="rebootModal" tabindex="-1" aria-labelledby="rebootModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="rebootModalLabel">Rendszer újraindítása</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    Biztosan újra szeretné indítani a rendszert?
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Mégse</button>
+                    <button type="button" class="btn btn-warning" id="confirmReboot">Újraindítás</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        function updateSystemInfo() {
+            $.getJSON('/system_info', function(data) {
+                var content = `
+                    <p><strong>CPU használat:</strong> ${data.cpu}%</p>
+                    <p><strong>Memória használat:</strong> ${data.memory.percent}% (${(data.memory.used / 1024 / 1024 / 1024).toFixed(2)} GB / ${(data.memory.total / 1024 / 1024 / 1024).toFixed(2)} GB)</p>
+                    <p><strong>Lemezhasználat:</strong> ${data.disk.percent}% (${(data.disk.used / 1024 / 1024 / 1024).toFixed(2)} GB / ${(data.disk.total / 1024 / 1024 / 1024).toFixed(2)} GB)</p>
+                `;
+                $('#system-info-content').html(content);
+            });
+        }
+
+        function updateFileBrowser(path = '/') {
+            $.getJSON('/directory_contents', { path: path }, function(data) {
+                var content = `<ul class="list-group">`;
+                if (path !== '/') {
+                    content += `<li class="list-group-item"><a href="#" data-path="${path.split('/').slice(0, -1).join('/')}">..</a></li>`;
+                }
+                data.forEach(function(item) {
+                    var icon = item.is_dir ? '<i class="fa fa-folder"></i>' : '<i class="fa fa-file"></i>';
+                    content += `<li class="list-group-item">
+                        ${icon} <a href="#" data-path="${item.path}">${item.name}</a>
+                        ${item.is_dir ? '' : `<span class="badge bg-secondary float-end">${(item.size / 1024).toFixed(2)} KB</span>`}
+                    </li>`;
+                });
+                content += `</ul>`;
+                $('#file-browser-content').html(content);
+            });
+        }
+
+        $(document).ready(function() {
+            updateSystemInfo();
+            setInterval(updateSystemInfo, 5000);
+            updateFileBrowser();
+
+            $('#execute-command').click(function() {
+                var command = $('#command-input').val();
+                $.post('/execute_command', { command: command }, function(data) {
+                    $('#command-output').text(data.output || data.error);
+                });
+            });
+
+            $(document).on('click', '#file-browser-content a', function(e) {
+                e.preventDefault();
+                var path = $(this).data('path');
+                updateFileBrowser(path);
+            });
+
+            $('#confirmShutdown').click(function() {
+                $.post('/shutdown', function(data) {
+                    if (data.success) {
+                        alert('A rendszer kikapcsolása megkezdődött.');
+                    } else {
+                        alert('Hiba történt a kikapcsolás során.');
+                    }
+                    $('#shutdownModal').modal('hide');
+                });
+            });
+
+            $('#confirmReboot').click(function() {
+                $.post('/reboot', function(data) {
+                    if (data.success) {
+                        alert('A rendszer újraindítása megkezdődött.');
+                    } else {
+                        alert('Hiba történt az újraindítás során.');
+                    }
+                    $('#rebootModal').modal('hide');
+                });
+            });
+        });
+    </script>
+</body>
+</html>
